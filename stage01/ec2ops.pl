@@ -19,7 +19,7 @@ $library_sleep = 0;
 $devname = "/dev/sdc";
 $emitype = "instancestoreemi";
 $keypath = ".";
-$bfe_image = "http://192.168.7.65/bfebs-image/bfebs.img";
+$bfe_image = "http://mirror.qa.eucalyptus-systems.com/bfebs-image/bfebs.img";
 $piperetries = 1;
 $imgfile="";
 
@@ -646,13 +646,13 @@ sub parse_input {
 		    $cc_has_broker{"CC$1"} = 1;
 		}
 		if ($component =~ /NC\d+/) {
-		    if ($distro eq "FEDORA" || $distro eq "DEBIAN" || ($distro eq "RHEL" && $version =~ /^6\./) || ($distro eq "UBUNTU" && $source eq "REPO")) {
+		    if ($distro eq "FEDORA" || $distro eq "DEBIAN" || ( ($distro eq "RHEL" || $distro eq "CENTOS") && $version =~ /^6\./) || ($distro eq "UBUNTU" && ( $source eq "REPO" || $version eq "PRECISE" )) ) {
 			$use_virtio = 1;
-			setbfeimagelocation("http://192.168.7.65/bfebs-image/bfebs.img");
+			setbfeimagelocation("http://mirror.qa.eucalyptus-systems.com/bfebs-image/bfebs.img");
 		    } elsif ($distro eq "UBUNTU") {
-			setbfeimagelocation("http://192.168.7.65/bfebs-image/bfebs.img");
+			setbfeimagelocation("http://mirror.qa.eucalyptus-systems.com/bfebs-image/bfebs.img");
 		    } else {
-			setbfeimagelocation("http://192.168.7.65/bfebs-image/bfebs-xen.img");
+			setbfeimagelocation("http://mirror.qa.eucalyptus-systems.com/bfebs-image/bfebs-xen.img");
 		    }
 		    
 		}
@@ -692,7 +692,16 @@ sub parse_input {
     if ($use_virtio) {
 	$devname = "/dev/vdb";
 	print "Using virtio device name: $devname\n";
-    }
+    }else{
+	### FOR USING PRECISE INSTANCE IMAGE 	090412
+        ### FIXED TO IGNORE VMWARE CASE         090812
+        my $this_nc = `cat ../input/2b_tested.lst | grep NC00 | head -n 1`;
+        chomp($this_nc);
+        if( !($this_nc =~ /VMWARE/) ){
+                $devname = "/dev/xvdb";
+                print "Using virtio device name: $devname\n";
+        };
+    };
     
     if ($isha) {
 	setremote($masters{CLC});
@@ -972,7 +981,15 @@ sub find_instance_volume {
     if ($use_virtio) {
 	$cmd = "$runat ssh -o StrictHostKeyChecking=no -i $keypairfile root\@$instanceip 'ls /dev/vd\* | tail -n 1 | grep -v -e [0-9]'";
     } else {
-	$cmd = "$runat ssh -o StrictHostKeyChecking=no -i $keypairfile root\@$instanceip 'ls /dev/sd\* | grep -v sda | tail -n 1 | grep -v -e [0-9]'";
+	### FOR PRECISE INSTANCE IMAGE
+        ### FIXED TO IGNORE VMWARE CASE         090812
+        my $this_nc = `cat ../input/2b_tested.lst | grep NC00 | head -n 1`;
+        chomp($this_nc);
+        if( !($this_nc =~ /VMWARE/) ){
+		$cmd = "$runat ssh -o StrictHostKeyChecking=no -i $keypairfile root\@$instanceip 'ls /dev/xvd\* | grep -v xvda | tail -n 1 | grep -v -e [0-9]'";
+	}else{
+		$cmd = "$runat ssh -o StrictHostKeyChecking=no -i $keypairfile root\@$instanceip 'ls /dev/sd\* | grep -v sda | tail -n 1 | grep -v -e [0-9]'";
+	};
     }
     $done=0; 
     my $i;
@@ -1023,6 +1040,7 @@ sub run_command_not {
 sub ping_instance_from_cc {
     $instanceip = shift @_ || $current_artifacts{instanceprivateip};
     $doexit = shift @_ || "y";
+    my $bfebs = shift @_ || 0;
 
     my @ccips, $ccidx=0, $key;
 
@@ -1043,7 +1061,7 @@ sub ping_instance_from_cc {
 	doexit(1, "ERROR: invalid instanceip '$instanceip'\n");
     }
 
-    if ($bfe_image =~ /windows.*/){
+    if ($bfe_image =~ /windows.*/ and $bfebs){
           if($imgfile =~ /2008.*/ or $imgfile =~ /windows7.*/){
 		print "passing PING tests on newer windows versions ($imgfile)\n";
 		return(0);
@@ -1169,13 +1187,14 @@ sub setemitype {
 
 sub run_instances {
     my $num = shift @_ || 1;
+    my $bfebs = shift @_ || 0;
 
     my $emi = $current_artifacts{$emitype};
     my $keypair = $current_artifacts{keypair};
     my $zone = $current_artifacts{availabilityzone};
     my $group = $current_artifacts{group};
     my $type = "m1.small";
-    if ($bfe_image =~ /windows.*/){
+    if ($bfe_image =~ /windows.*/ and $bfebs){
 	$type = "m1.xlarge";
     }
 
@@ -2610,10 +2629,10 @@ sub populate_volume_with_image {
 	doexit(1, "populate_volume(): no IP ($ip) of local EBS device name ($idev)\n");
     }
 
-    run_instance_command("echo 192.168.7.65 archive.ubuntu.com >> /etc/hosts");
-    run_instance_command("echo 192.168.7.65 security.ubuntu.com >> /etc/hosts");
+    run_instance_command("echo 192.168.51.160 archive.ubuntu.com >> /etc/hosts");	###	QUICK HACK TO RETIRE 192.168.7.65 - Kyo 10/09/12
+    run_instance_command("echo 192.168.51.160 security.ubuntu.com >> /etc/hosts");	###     QUICK HACK TO RETIRE 192.168.7.65 - Kyo 10/09/12
     $oldrunat = $runat;
-    setrunat("runat 120");
+    setrunat("runat 600");
     run_instance_command("apt-get update; true");
     run_instance_command("apt-get install -y curl; true");
     if ( $bfe_image =~ /windows.*/) {                        
