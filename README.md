@@ -1,3 +1,16 @@
+vm_churn_test
+=============
+
+## Description
+
+Churn through the maximum amount VMs
+
+## Procedure
+
+1. Create as many m1small VMs as are available
+2. Then turn them all down and ensure that there is no stale data.
+
+
 # Eucalyptus Testunit Framework
 
 Eucalyptus Testunit Framework is designed to run a list of test scripts written by Eucalyptus developers.
